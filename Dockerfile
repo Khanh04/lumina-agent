@@ -1,3 +1,12 @@
+# Build the React UI (frontend/dist) in a throwaway Node stage.
+FROM node:20-slim AS ui
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+
 FROM python:3.11-slim
 
 # Minimal OS deps for OpenCV + MediaPipe. The MediaPipe Tasks C bindings need EGL/GLES
@@ -20,6 +29,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . /app
+
+# The built React UI, served by FastAPI at / (same origin as the API — no CORS).
+COPY --from=ui /ui/dist /app/frontend/dist
 
 # Fetch segmentation models (kept out of git): MediaPipe selfie-seg (preset regions) +
 # MobileSAM ONNX encoder/decoder (click-to-select), unzipped into the models dir.
