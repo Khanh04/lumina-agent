@@ -52,4 +52,5 @@ RUN uv sync --frozen --no-dev
 RUN uv run python -c "from ultralytics import YOLOWorld; YOLOWorld('/app/app/cv/models/yolov8s-world.pt').set_classes(['object'])"
 
 EXPOSE 8000
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form (not exec array) so $PORT expands — Railway assigns it at runtime, doesn't fix it to 8000.
+CMD uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
