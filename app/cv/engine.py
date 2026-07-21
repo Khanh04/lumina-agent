@@ -156,8 +156,14 @@ def _resolve_mask(image: np.ndarray, target: str, segmentor, regions):
 
 
 def encode_mask(mask: np.ndarray) -> bytes:
-    """(h,w,1) float32 [0,1] mask -> grayscale PNG bytes for storage/transport."""
-    return cv2.imencode(".png", (mask.squeeze(-1) * 255).astype(np.uint8))[1].tobytes()
+    """(h,w,1) float32 [0,1] mask -> grayscale+alpha PNG bytes for storage/transport. Alpha
+    carries the same value as the grayscale channels: CSS `mask-image` reads a raster image's
+    *alpha* channel to decide visibility, not luminance — a plain grayscale (alpha-less) PNG
+    is fully opaque everywhere, so the frontend's overlay would show at full coverage no
+    matter what the grayscale pixels said. Backend `decode_mask` is unaffected (it reads
+    grayscale, which still equals the mask value here)."""
+    v = (mask.squeeze(-1) * 255).astype(np.uint8)
+    return cv2.imencode(".png", cv2.merge([v, v, v, v]))[1].tobytes()
 
 
 def decode_mask(mask_png: bytes) -> np.ndarray:

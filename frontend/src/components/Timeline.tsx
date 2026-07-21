@@ -2,14 +2,14 @@ import { Fragment } from "react";
 
 interface Props {
   count: number; // number of versions (original + edits)
+  current: number; // index of the active step
   onRevert: (step: number) => void;
   onUndo: () => void;
   canUndo: boolean;
   download: string | null; // current image data URL, or null
 }
 
-export default function Timeline({ count, onRevert, onUndo, canUndo, download }: Props) {
-  const current = count - 1;
+export default function Timeline({ count, current, onRevert, onUndo, canUndo, download }: Props) {
   return (
     <div className="timeline">
       <span className="wordmark">

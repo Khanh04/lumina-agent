@@ -11,6 +11,7 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
+  const [current, setCurrent] = useState(0); // index into versions of the active step
   const [maskUrl, setMaskUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export default function App() {
   async function onFile(file: File) {
     if (!file.type.startsWith("image/")) return;
     setVersions([{ url: URL.createObjectURL(file) }]); // instant local preview
+    setCurrent(0);
     setMaskUrl(null);
     setSessionId(null);
     setError(null);
@@ -43,10 +45,13 @@ export default function App() {
     setError(null);
     try {
       const r = await chat(sessionId, prompt);
+      // A new edit branches off the active step — steps after it (if we'd reverted) are
+      // abandoned, matching the backend's push_edit trim-then-append behavior.
       setVersions((v) => [
-        ...v,
+        ...v.slice(0, current + 1),
         { url: jpeg(r.processed_image_base64), recipe: r.recipe, telemetry: r.telemetry, skipped: r.skipped },
       ]);
+      setCurrent((c) => c + 1);
     } catch (e) {
       setError(msg(e));
     } finally {
@@ -73,15 +78,15 @@ export default function App() {
     if (!sessionId) return;
     try {
       await revert(sessionId, step);
-      setVersions((v) => v.slice(0, step + 1));
+      setCurrent(step); // non-destructive — later steps stay in `versions` for redo
     } catch (e) {
       setError(msg(e));
     }
   }
 
   const empty = versions.length === 0;
-  const current = versions[versions.length - 1];
-  const before = versions.length > 1 ? versions[versions.length - 2].url : null;
+  const active = versions[current];
+  const before = current > 0 ? versions[current - 1].url : null;
 
   return (
     <div
@@ -101,10 +106,11 @@ export default function App() {
       {!empty && (
         <Timeline
           count={versions.length}
+          current={current}
           onRevert={onRevert}
-          onUndo={() => onRevert(versions.length - 2)}
-          canUndo={versions.length > 1}
-          download={current?.url ?? null}
+          onUndo={() => onRevert(current - 1)}
+          canUndo={current > 0}
+          download={active?.url ?? null}
         />
       )}
 
@@ -129,8 +135,8 @@ export default function App() {
           </div>
         ) : (
           <>
-            <Stage afterUrl={current.url} beforeUrl={before} maskUrl={maskUrl} loading={loading} onSelect={onSelect} />
-            {current && <RecipeHUD version={current} />}
+            <Stage afterUrl={active.url} beforeUrl={before} maskUrl={maskUrl} loading={loading} onSelect={onSelect} />
+            {active && <RecipeHUD version={active} />}
             <CommandBar
               loading={loading}
               selectionActive={maskUrl !== null}
