@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     model_name: str = "google:gemini-flash-lite-latest"
     redis_url: str = "redis://localhost:6379/0"
     session_ttl_seconds: int = 3600
+    # Comma-separated origins allowed via CORS. Only set when hosting the frontend on a
+    # separate origin; dev (Vite proxy) and the default deploy (UI served by FastAPI) are same-origin.
+    cors_allow_origins: str = ""
     # Segmentation models. Downloaded in the Dockerfile; for local dev fetch them once
     # (see README/verification) into these paths.
     segmenter_model_path: str = "app/cv/models/selfie_segmenter.tflite"  # MediaPipe preset regions

@@ -71,7 +71,19 @@ Local API: **http://localhost:8000**, UI: **http://localhost:8000/ui**. On first
 ultralytics installs its CLIP fork via git (needs network once). Adjust the port in the
 examples below to match how you started it.
 
-## UI (`/ui`)
+## UI
+
+Two front-ends share the same pipeline:
+
+- **`/`** — the dedicated **React** app (`frontend/`), a cinematic full-bleed editor with a
+  before/after seam, click-to-select, a version timeline, and a live "recipe" HUD. The Docker
+  image bakes the built assets and FastAPI serves them at `/`. For local dev, run it hot:
+  ```bash
+  cd frontend && npm install && npm run dev    # http://localhost:5173, proxies /api to :8000
+  ```
+- **`/ui`** — the original Gradio app (kept during the transition), described below.
+
+### Gradio (`/ui`)
 
 A Gradio app for interactive editing:
 - **Upload** a photo (left "Original" pane).
@@ -88,9 +100,13 @@ Interactive docs at `/docs`. Three endpoints:
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|
+| POST | `/api/v1/sessions/create` | `file` (image) | Create a session without editing (returns `session_id` + image) |
 | POST | `/api/v1/sessions/start` | `file` (image) + `prompt` | Create a session and run the first edit |
 | POST | `/api/v1/sessions/{id}/chat` | `prompt` | Continue editing the current image |
-| POST | `/api/v1/sessions/{id}/undo` | — | Restore the previous image from the stack |
+| POST | `/api/v1/sessions/{id}/undo` | — | Restore the previous image (returns it) |
+| POST | `/api/v1/sessions/{id}/revert` | `{step}` (JSON) | Roll the stack back to a version (returns that image) |
+| POST | `/api/v1/sessions/{id}/select` | `{x, y}` (JSON) | Click-select a region (MobileSAM); returns a mask, applied to the next edit |
+| POST | `/api/v1/sessions/{id}/select/clear` | — | Drop the active click-selection |
 
 ### Example
 
