@@ -111,8 +111,17 @@ export default function App() {
           onUndo={() => onRevert(current - 1)}
           canUndo={current > 0}
           download={active?.url ?? null}
+          onNewPhoto={() => fileInput.current?.click()}
         />
       )}
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+      />
 
       <div className="stage">
         {empty ? (
@@ -125,13 +134,6 @@ export default function App() {
             <button className="pick" onClick={() => fileInput.current?.click()}>
               Drop a photo · or browse
             </button>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-            />
           </div>
         ) : (
           <>

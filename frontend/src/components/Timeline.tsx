@@ -7,9 +7,10 @@ interface Props {
   onUndo: () => void;
   canUndo: boolean;
   download: string | null; // current image data URL, or null
+  onNewPhoto: () => void;
 }
 
-export default function Timeline({ count, current, onRevert, onUndo, canUndo, download }: Props) {
+export default function Timeline({ count, current, onRevert, onUndo, canUndo, download, onNewPhoto }: Props) {
   return (
     <div className="timeline">
       <span className="wordmark">
@@ -28,6 +29,9 @@ export default function Timeline({ count, current, onRevert, onUndo, canUndo, do
         ))}
       </div>
       <div className="tools">
+        <button className="icon-btn" onClick={onNewPhoto}>
+          ⤒ new photo
+        </button>
         <button className="icon-btn" onClick={onUndo} disabled={!canUndo}>
           ⌫ undo
         </button>
