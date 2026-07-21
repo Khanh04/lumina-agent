@@ -33,6 +33,7 @@ export interface RetouchResponse {
   recipe: RetouchRecipe;
   telemetry: ImageTelemetry;
   processed_image_base64: string;
+  image_format: "jpeg" | "png";
   execution_time_ms: number;
   skipped: string[];
 }

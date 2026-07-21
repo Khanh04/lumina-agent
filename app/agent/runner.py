@@ -38,6 +38,8 @@ Available edit ops (use these exact tool_name values and parameter keys):
 - gaussian_blur  parameters: {"radius": int in [1, 51]}            # soften; on a region = blur it (e.g. background bokeh)
 - auto_white_balance  parameters: {}                                # neutralize a colour cast (gray-world)
 - clahe  parameters: {"clip_limit": float in [1.0, 5.0]}           # local contrast / "clarity"
+- remove_background  parameters: {}                      # cut the subject onto a transparent background (real alpha)
+- remove_object  parameters: {"radius": int in [1, 25]}   # erase an object via inpainting; must target a region:<name> from find_region
 
 Each action's "target" is the region it applies to. Preset targets:
 "global", "subject", "background", "face", "sky", "radial_center". Default to "global".
@@ -47,6 +49,12 @@ If the user asks to edit a SPECIFIC named object that is not a preset (e.g. "the
 returns a target string like "region:flower" — put that exact string in the target of the
 actions that should affect only that object. If find_region reports it wasn't found, fall
 back to the most sensible preset (usually "global") and say so in the summary.
+
+remove_object only makes sense on a specific object — always call find_region first and
+target the returned "region:<name>"; never target it at "global" or "background".
+remove_background usually targets the default "subject" preset, but if the user names a
+specific thing to keep ("cut out just the vase"), call find_region and target
+"region:<name>" instead so only that object stays opaque.
 
 Keep edits minimal and justified. Put a short reason in each action's rationale, and a
 one-line overall summary. If no edit is warranted, return an empty actions list.

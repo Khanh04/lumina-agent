@@ -5,11 +5,25 @@ The ACTION_REGISTRY maps a tool name to (validated param model, callable). The L
 can only ever invoke a name in this registry, with parameters that pass the model's
 ge/le bounds — that is what makes "structured output + allowlist" safe.
 """
+import functools
 from typing import Callable
 
 import cv2
 import numpy as np
 from pydantic import BaseModel, Field
+
+
+def _preserve_alpha(fn):
+    """Existing ops only know 3-channel BGR. Strip channel 4 before calling them, splice it
+    back onto the result untouched — keeps every wrapped op's own logic unchanged."""
+    @functools.wraps(fn)
+    def wrapper(cls, image, mask, *args, **kwargs):
+        if image.shape[2] != 4:
+            return fn(cls, image, mask, *args, **kwargs)
+        bgr, alpha = image[:, :, :3], image[:, :, 3:4]
+        result = fn(cls, bgr, mask, *args, **kwargs)
+        return np.concatenate([result, alpha], axis=2)
+    return wrapper
 
 
 class ImageEngine:
@@ -20,6 +34,7 @@ class ImageEngine:
         return np.clip(blended, 0, 255).astype(np.uint8)
 
     @classmethod
+    @_preserve_alpha
     def adjust_exposure(cls, image: np.ndarray, mask: np.ndarray, ev: float) -> np.ndarray:
         """Scale exposure on the masked region by an EV factor (2**ev)."""
         edited = cv2.multiply(image.astype(np.float32), 2.0 ** ev)
@@ -40,6 +55,7 @@ class ImageEngine:
         return cls.blend(image, edited, mask)
 
     @classmethod
+    @_preserve_alpha
     def unsharp_mask(cls, image: np.ndarray, mask: np.ndarray, amount: float, radius: int) -> np.ndarray:
         """Sharpen detail on the masked region via unsharp masking (image + amount*(image-blur))."""
         r = radius if radius % 2 else radius + 1  # Gaussian kernel size must be odd
@@ -49,6 +65,7 @@ class ImageEngine:
         return cls.blend(image, sharpened, mask)
 
     @classmethod
+    @_preserve_alpha
     def adjust_saturation(cls, image: np.ndarray, mask: np.ndarray, factor: float) -> np.ndarray:
         """Scale color saturation on the masked region (0 = greyscale, >1 = more vivid)."""
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
@@ -57,12 +74,14 @@ class ImageEngine:
         return cls.blend(image, edited, mask)
 
     @classmethod
+    @_preserve_alpha
     def adjust_contrast(cls, image: np.ndarray, mask: np.ndarray, factor: float) -> np.ndarray:
         """Scale contrast around mid-grey (128) on the masked region."""
         edited = np.clip((image.astype(np.float32) - 128.0) * factor + 128.0, 0, 255).astype(np.uint8)
         return cls.blend(image, edited, mask)
 
     @classmethod
+    @_preserve_alpha
     def gaussian_blur(cls, image: np.ndarray, mask: np.ndarray, radius: int) -> np.ndarray:
         """Soften the masked region — pair with a background mask/selection for fake bokeh."""
         r = radius if radius % 2 else radius + 1  # kernel size must be odd
@@ -70,6 +89,7 @@ class ImageEngine:
         return cls.blend(image, edited, mask)
 
     @classmethod
+    @_preserve_alpha
     def auto_white_balance(cls, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """Gray-world white balance: scale each channel so its mean matches the overall grey."""
         edited = image.astype(np.float32)
@@ -81,6 +101,7 @@ class ImageEngine:
         return cls.blend(image, edited.astype(np.uint8), mask)
 
     @classmethod
+    @_preserve_alpha
     def clahe(cls, image: np.ndarray, mask: np.ndarray, clip_limit: float) -> np.ndarray:
         """Contrast-limited adaptive histogram equalization on luminance (local 'clarity')."""
         lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
@@ -88,6 +109,27 @@ class ImageEngine:
         equalized = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8)).apply(l)
         edited = cv2.cvtColor(cv2.merge([equalized, a, b]), cv2.COLOR_LAB2BGR)
         return cls.blend(image, edited, mask)
+
+    @classmethod
+    def remove_background(cls, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """Cut the masked subject onto a transparent background: convert to BGRA if needed and
+        set alpha = mask directly. Bypasses blend() deliberately — alpha replacement means the
+        mask value BECOMES the new alpha, not an average against the old one."""
+        bgr = image[:, :, :3] if image.shape[2] == 4 else image
+        alpha = np.clip(mask[:, :, 0] * 255, 0, 255).astype(np.uint8)
+        return np.dstack([bgr, alpha])
+
+    @classmethod
+    @_preserve_alpha
+    def remove_object(cls, image: np.ndarray, mask: np.ndarray, radius: int = 7) -> np.ndarray:
+        """Content-aware erase via cv2.inpaint, driven by whatever mask the target resolves to
+        (typically region:<name> from find_region). Binarize+dilate the feathered mask for
+        inpaint's own hard mask arg; inpaint on BGR; blend back through the original feathered
+        mask for a soft edge."""
+        hard_mask = (mask[:, :, 0] > 0.5).astype(np.uint8) * 255
+        hard_mask = cv2.dilate(hard_mask, np.ones((5, 5), np.uint8))  # cover the feathered edge fully
+        inpainted = cv2.inpaint(image, hard_mask, radius, cv2.INPAINT_TELEA)
+        return cls.blend(image, inpainted, mask)
 
 
 # --- Allowlist: param models carry the ge/le bounds the doc put on the dead tool stubs ---
@@ -127,6 +169,14 @@ class ClaheParams(BaseModel):
     clip_limit: float = Field(2.0, ge=1.0, le=5.0, description="Local-contrast clip limit")
 
 
+class RemoveBackgroundParams(BaseModel):
+    """No parameters — the target field (default 'subject') selects what stays opaque."""
+
+
+class RemoveObjectParams(BaseModel):
+    radius: int = Field(7, ge=1, le=25, description="Inpaint neighborhood radius in pixels")
+
+
 # name -> (validated param model, engine op). Adding an op = one line here.
 ACTION_REGISTRY: dict[str, tuple[type[BaseModel], Callable[..., np.ndarray]]] = {
     "adjust_exposure": (ExposureParams, ImageEngine.adjust_exposure),
@@ -137,6 +187,8 @@ ACTION_REGISTRY: dict[str, tuple[type[BaseModel], Callable[..., np.ndarray]]] = 
     "gaussian_blur": (BlurParams, ImageEngine.gaussian_blur),
     "auto_white_balance": (AutoWhiteBalanceParams, ImageEngine.auto_white_balance),
     "clahe": (ClaheParams, ImageEngine.clahe),
+    "remove_background": (RemoveBackgroundParams, ImageEngine.remove_background),
+    "remove_object": (RemoveObjectParams, ImageEngine.remove_object),
 }
 
 
@@ -229,6 +281,22 @@ if __name__ == "__main__":
     # clahe returns a valid same-shape image
     cl = ImageEngine.clahe(np.random.randint(0, 255, (16, 16, 3), np.uint8), np.ones((16, 16, 1), np.float32), 2.0)
     assert cl.shape == (16, 16, 3) and cl.dtype == np.uint8
+
+    # remove_background: alpha IS the mask, verbatim — full mask -> opaque, zero mask -> fully transparent
+    cut_full = ImageEngine.remove_background(img, full)
+    assert cut_full.shape == (4, 4, 4) and cut_full[0, 0, 3] == 255
+    cut_zero = ImageEngine.remove_background(img, zero)
+    assert cut_zero[0, 0, 3] == 0
+
+    # remove_object on a flat-color image is a no-op (nothing to inpaint from that differs)
+    flat = np.full((20, 20, 3), 90, np.uint8)
+    assert np.array_equal(ImageEngine.remove_object(flat, np.ones((20, 20, 1), np.float32)), flat)
+
+    # _preserve_alpha: a wrapped op run on BGRA input leaves the alpha channel bit-identical
+    bgra = np.dstack([colored, np.full((8, 8), 77, np.uint8)])
+    out_bgra = ImageEngine.adjust_saturation(bgra, m8, 0.0)
+    assert out_bgra.shape[2] == 4
+    assert np.array_equal(out_bgra[:, :, 3], bgra[:, :, 3])
 
     # allowlist rejects out-of-range and unknown tools
     class _A:

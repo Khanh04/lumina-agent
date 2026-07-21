@@ -24,7 +24,6 @@ dependencies = [
     "redis>=5.0.0",
     "python-multipart>=0.0.9",
     "logfire[fastapi]>=3.0",
-    "gradio>=4.0",
     "pillow-heif>=1.4.0",
 ]
 

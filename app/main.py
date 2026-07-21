@@ -25,7 +25,7 @@ from app.cv.segmentor import CVSegmentor
 from app.schemas import RetouchResponse
 from app.services.session import RedisSessionManager
 
-# Prefix that tells the agent an explicit region is selected (kept in sync with app/ui.py).
+# Prefix that tells the agent an explicit region is selected.
 _SEL_NOTE = "[A region is selected; apply edits only within it — the target field is ignored] "
 
 app = FastAPI(title="Lumina Agent API", version="2.0")
@@ -75,7 +75,7 @@ def _decode_upload(contents: bytes) -> tuple[np.ndarray, bytes]:
     """Return (BGR image, cv2-decodable bytes). JPEG/PNG/WebP pass through untouched; AVIF/HEIC
     (which OpenCV-headless can't read) are transcoded to PNG so every downstream decode — the
     analyzer, undo/revert — succeeds on the stored bytes. 400 if nothing can read it."""
-    img = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    img = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_UNCHANGED)
     if img is not None:
         return img, contents
     try:
@@ -86,13 +86,23 @@ def _decode_upload(contents: bytes) -> tuple[np.ndarray, bytes]:
     return bgr, cv2.imencode(".png", bgr)[1].tobytes()
 
 
-async def _current_image_b64(session_id: str) -> str:
-    """Current image, normalized to JPEG base64 (undo/revert may restore a non-JPEG original)."""
+def _encode_for_transport(img: np.ndarray) -> tuple[bytes, str]:
+    """PNG (keeps alpha) if the image has a 4th channel, else JPEG (current default)."""
+    ext, fmt = (".png", "png") if img.shape[2] == 4 else (".jpg", "jpeg")
+    ok, buffer = cv2.imencode(ext, img)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to encode processed image.")
+    return buffer.tobytes(), fmt
+
+
+async def _current_image_b64(session_id: str) -> tuple[str, str]:
+    """Current image as (base64, format) — undo/revert may restore a non-JPEG original."""
     current, _ = await session_mgr.get_current(session_id)
     if not current:
         raise HTTPException(status_code=404, detail="Session expired or not found.")
     img, _ = _decode_upload(current)
-    return base64.b64encode(cv2.imencode(".jpg", img)[1].tobytes()).decode("utf-8")
+    encoded, fmt = _encode_for_transport(img)
+    return base64.b64encode(encoded).decode("utf-8"), fmt
 
 
 async def _run_turn(session_id: str, prompt: str) -> RetouchResponse:
@@ -121,10 +131,7 @@ async def _run_turn(session_id: str, prompt: str) -> RetouchResponse:
             skipped.append(f"{action.tool_name}: {exc}")
             logfire.warn("skipped invalid action", tool=action.tool_name, error=str(exc))
 
-    ok, buffer = cv2.imencode(".jpg", processed)
-    if not ok:
-        raise HTTPException(status_code=500, detail="Failed to encode processed image.")
-    encoded = buffer.tobytes()
+    encoded, fmt = _encode_for_transport(processed)
     await session_mgr.push_edit(session_id, encoded, result.all_messages())
 
     return RetouchResponse(
@@ -132,6 +139,7 @@ async def _run_turn(session_id: str, prompt: str) -> RetouchResponse:
         recipe=recipe,
         telemetry=telemetry,
         processed_image_base64=base64.b64encode(encoded).decode("utf-8"),
+        image_format=fmt,
         execution_time_ms=round((time.perf_counter() - start) * 1000, 2),
         skipped=skipped,
     )
@@ -144,9 +152,11 @@ async def create_session(file: UploadFile = File(...)):
     session_id = str(uuid.uuid4())
     img, canonical = _decode_upload(await file.read())  # transcodes AVIF/HEIC; 400 if unreadable
     await session_mgr.create_session(session_id, canonical)
+    encoded, fmt = _encode_for_transport(img)
     return {
         "session_id": session_id,
-        "image_base64": base64.b64encode(cv2.imencode(".jpg", img)[1].tobytes()).decode("utf-8"),
+        "image_base64": base64.b64encode(encoded).decode("utf-8"),
+        "image_format": fmt,
     }
 
 
@@ -167,14 +177,16 @@ async def process_chat_message(session_id: str, prompt: str = Form(...)):
 async def undo_last_edit(session_id: str):
     if not await session_mgr.undo(session_id):
         raise HTTPException(status_code=400, detail="Nothing to undo.")
-    return {"status": "success", "processed_image_base64": await _current_image_b64(session_id)}
+    b64, fmt = await _current_image_b64(session_id)
+    return {"status": "success", "processed_image_base64": b64, "image_format": fmt}
 
 
 @app.post("/api/v1/sessions/{session_id}/revert")
 async def revert_to_step(session_id: str, req: RevertRequest):
     if not await session_mgr.revert_to(session_id, req.step):
         raise HTTPException(status_code=400, detail="Step out of range.")
-    return {"status": "success", "processed_image_base64": await _current_image_b64(session_id)}
+    b64, fmt = await _current_image_b64(session_id)
+    return {"status": "success", "processed_image_base64": b64, "image_format": fmt}
 
 
 @app.post("/api/v1/sessions/{session_id}/select")
@@ -194,18 +206,8 @@ async def clear_region_selection(session_id: str):
     return {"status": "success"}
 
 
-# Gradio UI at /ui, sharing the same pipeline singletons as the API above.
-import gradio as gr  # noqa: E402
-
-from app.ui import build_ui  # noqa: E402
-
-app = gr.mount_gradio_app(
-    app, build_ui(segmentor, analyzer, agent_runner, sam, grounder), path="/ui",
-    theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"),
-)
-
 # The built React UI at / (produced by `npm run build`; the Docker image bakes it). Mounted
-# LAST so /api/v1 and /ui match first. Absent in local dev unless you've run the build — the
+# LAST so /api/v1 matches first. Absent in local dev unless you've run the build — the
 # dev flow is `npm run dev` on :5173 proxying to this API.
 import os  # noqa: E402
 

@@ -12,14 +12,17 @@ async function json<T>(res: Response): Promise<T> {
 
 export const jpeg = (b64: string) => `data:image/jpeg;base64,${b64}`;
 export const png = (b64: string) => `data:image/png;base64,${b64}`;
+export const dataUrl = (b64: string, format: "jpeg" | "png") => (format === "png" ? png(b64) : jpeg(b64));
 
 export interface CreateResponse {
   session_id: string;
   image_base64: string;
+  image_format: "jpeg" | "png";
 }
 export interface ImageResponse {
   status: string;
   processed_image_base64: string;
+  image_format: "jpeg" | "png";
 }
 export interface SelectResponse {
   mask_base64: string;

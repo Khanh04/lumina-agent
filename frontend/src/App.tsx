@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, clearSelection, createSession, jpeg, png, revert, selectRegion } from "./api";
+import { chat, clearSelection, createSession, dataUrl, png, revert, selectRegion } from "./api";
 import type { Version } from "./types";
 import Stage from "./components/Stage";
 import CommandBar from "./components/CommandBar";
@@ -49,7 +49,12 @@ export default function App() {
       // abandoned, matching the backend's push_edit trim-then-append behavior.
       setVersions((v) => [
         ...v.slice(0, current + 1),
-        { url: jpeg(r.processed_image_base64), recipe: r.recipe, telemetry: r.telemetry, skipped: r.skipped },
+        {
+          url: dataUrl(r.processed_image_base64, r.image_format),
+          recipe: r.recipe,
+          telemetry: r.telemetry,
+          skipped: r.skipped,
+        },
       ]);
       setCurrent((c) => c + 1);
     } catch (e) {

@@ -29,7 +29,7 @@ class CVAnalyzer:
 
     def analyze(self, image_bytes: bytes) -> tuple[np.ndarray, ImageTelemetry]:
         arr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
         if img is None:
             raise ValueError("could not decode image bytes")
 

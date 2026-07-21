@@ -31,6 +31,8 @@ class CVSegmentor:
 
     def get_mask(self, image: np.ndarray, target: TargetType) -> np.ndarray:
         h, w, _ = image.shape
+        if image.shape[2] == 4:  # color conversions below only accept 3 channels
+            image = image[:, :, :3]
 
         if target == "global":
             return np.ones((h, w, 1), dtype=np.float32)

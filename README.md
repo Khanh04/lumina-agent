@@ -12,7 +12,7 @@ No pixels are generated — every edit is a math operation with validated, bound
 - **Named objects** — the agent has a `find_region` tool: when you mention a specific object
   ("sharpen the flower", "warm the car"), it locates it with **YOLO-World** and masks it with
   **MobileSAM** (Grounded-SAM), then targets the edit there.
-- **Manual selection** — in the `/ui`, click an object to select it (MobileSAM); an active
+- **Manual selection** — in the UI, click an object to select it (MobileSAM); an active
   selection overrides everything for that turn.
 
 ## Prerequisites
@@ -40,8 +40,7 @@ docker compose up --build
 ```
 
 Compose reads `GOOGLE_API_KEY` from `.env`, starts Redis, and downloads all models into the
-image. The API is exposed on **http://localhost:8001** (host port per `docker-compose.yml`);
-the UI is at **http://localhost:8001/ui**.
+image. The API and UI are exposed on **http://localhost:8001** (host port per `docker-compose.yml`).
 
 ### Option B — Local (you supply Redis)
 
@@ -67,32 +66,18 @@ curl -sSL -o app/cv/models/yolov8s-world.pt \
 uv run uvicorn app.main:app --reload --port 8000   # .env is loaded automatically
 ```
 
-Local API: **http://localhost:8000**, UI: **http://localhost:8000/ui**. On first startup
-ultralytics installs its CLIP fork via git (needs network once). Adjust the port in the
-examples below to match how you started it.
+Local API + UI: **http://localhost:8000**. On first startup ultralytics installs its CLIP
+fork via git (needs network once). Adjust the port in the examples below to match how you
+started it.
 
 ## UI
 
-Two front-ends share the same pipeline:
-
-- **`/`** — the dedicated **React** app (`frontend/`), a cinematic full-bleed editor with a
-  before/after seam, click-to-select, a version timeline, and a live "recipe" HUD. The Docker
-  image bakes the built assets and FastAPI serves them at `/`. For local dev, run it hot:
-  ```bash
-  cd frontend && npm install && npm run dev    # http://localhost:5173, proxies /api to :8000
-  ```
-- **`/ui`** — the original Gradio app (kept during the transition), described below.
-
-### Gradio (`/ui`)
-
-A Gradio app for interactive editing:
-- **Upload** a photo (left "Original" pane).
-- **Click an object** to select it — the green highlight shows the mask; edits then apply
-  only there. Or just name the object in your instruction and let the agent find it.
-- **Instruction** box + **Apply** → the result appears on the right; **Original** and
-  **Result** sit side-by-side as a before/after.
-- **History strip** — every step is a thumbnail; click one to revert to it.
-- **Undo** (one step) and **Clear selection**.
+The **React** app (`frontend/`) is the UI — a cinematic full-bleed editor with a before/after
+seam, click-to-select, a version timeline, and a live "recipe" HUD. The Docker image bakes the
+built assets and FastAPI serves them at `/`. For local dev, run it hot:
+```bash
+cd frontend && npm install && npm run dev    # http://localhost:5173, proxies /api to :8000
+```
 
 ## API
 
@@ -147,14 +132,16 @@ region or a `region:<name>` produced by the `find_region` tool:
 | `gaussian_blur` | `radius` ∈ [1, 51] (blur a `background`/named region for fake bokeh) |
 | `auto_white_balance` | — |
 | `clahe` | `clip_limit` ∈ [1.0, 5.0] |
+| `remove_background` | — (cuts the subject onto a real transparent background) |
+| `remove_object` | `radius` ∈ [1, 25] (content-aware erase via inpainting; target must be a `region:<name>`) |
 
 ## Deployment & footprint
 
 CPU-only — no GPU anywhere (SAM runs on onnxruntime, YOLO-World is forced to CPU,
 MediaPipe/OpenCV are CPU). Provision accordingly:
 
-- **RAM**: ~1.5 GB resident with all models loaded (torch + CLIP + MobileSAM + MediaPipe +
-  Gradio). Use a plan with **≥2 GB** (the original 512 MB target predates SAM/YOLO-World).
+- **RAM**: ~1.5 GB resident with all models loaded (torch + CLIP + MobileSAM + MediaPipe).
+  Use a plan with **≥2 GB** (the original 512 MB target predates SAM/YOLO-World).
 - **Image**: ~2 GB. torch is pinned to the **CPU-only** wheel (see `[tool.uv.sources]` in
   `pyproject.toml`) — without that it pulls ~4.5 GB of unused CUDA.
 - **Build**: needs network + `git`. The Dockerfile downloads the model weights and runs a

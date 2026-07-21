@@ -44,6 +44,7 @@ class RetouchResponse(BaseModel):
     recipe: RetouchRecipe
     telemetry: ImageTelemetry
     processed_image_base64: str
+    image_format: Literal["jpeg", "png"] = "jpeg"
     execution_time_ms: float
     # Any actions the model emitted that failed validation and were skipped (never a 500).
     skipped: list[str] = Field(default_factory=list)
