@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+# MediaPipe model asset — downloaded in the Dockerfile / fetched locally for dev.
+app/cv/models/*.tflite
+app/cv/models/*.onnx
+app/cv/models/*.pt
+# CLIP weights cache (downloaded by ultralytics) and local sample images
+weights/
+*.jpeg
+*.avif

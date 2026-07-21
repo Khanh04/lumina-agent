@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_NAME=${MODEL_NAME:-google:gemini-flash-lite-latest}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
