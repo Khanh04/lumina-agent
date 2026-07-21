@@ -10,6 +10,7 @@ interface Props {
 
 export default function Stage({ afterUrl, beforeUrl, maskUrl, loading, onSelect }: Props) {
   const [seam, setSeam] = useState(50); // percent from left
+  const [dragging, setDragging] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const draggingSeam = useRef(false);
 
@@ -25,6 +26,7 @@ export default function Stage({ afterUrl, beforeUrl, maskUrl, loading, onSelect 
   function startSeamDrag(e: React.PointerEvent) {
     e.preventDefault();
     draggingSeam.current = true;
+    setDragging(true);
     const move = (ev: PointerEvent) => {
       const r = wrapRef.current!.getBoundingClientRect();
       setSeam(Math.min(100, Math.max(0, ((ev.clientX - r.left) / r.width) * 100)));
@@ -32,6 +34,7 @@ export default function Stage({ afterUrl, beforeUrl, maskUrl, loading, onSelect 
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      setDragging(false);
       setTimeout(() => (draggingSeam.current = false), 0); // let the trailing click be ignored
     };
     window.addEventListener("pointermove", move);
@@ -49,7 +52,13 @@ export default function Stage({ afterUrl, beforeUrl, maskUrl, loading, onSelect 
             alt="original"
             style={{ clipPath: `inset(0 ${100 - seam}% 0 0)` }}
           />
-          <div className="seam" style={{ left: `${seam}%` }} onPointerDown={startSeamDrag} />
+          <div
+            className={`seam ${dragging ? "dragging" : ""}`}
+            style={{ left: `${seam}%` }}
+            onPointerDown={startSeamDrag}
+          >
+            <span className="seam-grip" />
+          </div>
         </>
       )}
       {maskUrl && <div className="mask" style={{ WebkitMaskImage: `url(${maskUrl})`, maskImage: `url(${maskUrl})` }} />}

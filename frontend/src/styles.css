@@ -132,24 +132,65 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
-  background: var(--seam);
-  box-shadow: 0 0 12px var(--seam);
-  transform: translateX(-1px);
+  width: 24px;
+  transform: translateX(-12px);
   cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.seam::after {
-  content: "◂ ▸";
+.seam::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+  background: var(--seam);
+  opacity: 0.55;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+.seam:hover::before,
+.seam.dragging::before {
+  opacity: 1;
+  box-shadow: 0 0 14px var(--seam);
+}
+.seam-grip {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--safelight-dim);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.seam:hover .seam-grip,
+.seam.dragging .seam-grip {
+  transform: scale(1.1);
+  border-color: var(--safelight);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 0 5px rgba(232, 145, 43, 0.14);
+}
+.seam-grip::before,
+.seam-grip::after {
+  content: "";
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 10px;
-  color: var(--ground);
-  background: var(--seam);
-  border-radius: 20px;
-  padding: 3px 6px;
-  letter-spacing: -1px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform: translateY(-50%);
+}
+.seam-grip::before {
+  left: 8px;
+  border-right: 5px solid var(--safelight);
+}
+.seam-grip::after {
+  right: 8px;
+  border-left: 5px solid var(--safelight);
 }
 .mask {
   position: absolute;
