@@ -1,10 +1,13 @@
-"""Redis-backed session state. Two keys per session:
+"""Redis-backed session state. Three keys per session:
 
-  session:{id}:stack     LIST of image bytes, newest at head (index 0 = current image)
-  session:{id}:messages  pydantic-ai ModelMessage history (JSON)
+  session:{id}:stack      LIST of image bytes, newest at head (index 0 = current image)
+  session:{id}:messages   pydantic-ai ModelMessage history (JSON)
+  session:{id}:selection  PNG bytes of the active click-selection mask (optional)
 
 The image stack is what makes undo actually restore pixels (v1's undo only trimmed
-messages and re-saved the already-edited image).
+messages and re-saved the already-edited image). The selection key holds the mask a
+click produced (via the /select route), so the next edit turn applies only within it —
+the API equivalent of the Gradio UI's gr.State selection.
 """
 from typing import Optional
 
@@ -26,9 +29,12 @@ class RedisSessionManager:
     def _messages(self, sid: str) -> str:
         return f"session:{sid}:messages"
 
+    def _selection(self, sid: str) -> str:
+        return f"session:{sid}:selection"
+
     async def create_session(self, session_id: str, initial_image_bytes: bytes) -> None:
         async with self.redis.pipeline(transaction=True) as pipe:
-            pipe.delete(self._stack(session_id), self._messages(session_id))
+            pipe.delete(self._stack(session_id), self._messages(session_id), self._selection(session_id))
             pipe.lpush(self._stack(session_id), initial_image_bytes)
             pipe.set(self._messages(session_id), MessageListAdapter.dump_json([]))
             pipe.expire(self._stack(session_id), self.ttl)
@@ -64,3 +70,23 @@ class RedisSessionManager:
             pipe.expire(self._messages(session_id), self.ttl)
             await pipe.execute()
         return True
+
+    async def revert_to(self, session_id: str, step: int) -> bool:
+        """Trim the stack back to `step` (0 = original), dropping later images + message turns.
+        Reuses undo so message history stays consistent. Returns False if step is out of range."""
+        depth = await self.redis.llen(self._stack(session_id))
+        if step < 0 or step >= depth:
+            return False
+        for _ in range(depth - 1 - step):
+            await self.undo(session_id)
+        return True
+
+    async def set_selection(self, session_id: str, mask_png: bytes) -> None:
+        """Store the active click-selection mask (PNG bytes); the next edit turn applies within it."""
+        await self.redis.set(self._selection(session_id), mask_png, ex=self.ttl)
+
+    async def get_selection(self, session_id: str) -> Optional[bytes]:
+        return await self.redis.get(self._selection(session_id))
+
+    async def clear_selection(self, session_id: str) -> None:
+        await self.redis.delete(self._selection(session_id))

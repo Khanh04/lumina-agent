@@ -1,0 +1,386 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Timeline (top scrubber) --- */
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.wordmark {
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 13px;
+  margin-right: 18px;
+}
+.wordmark b {
+  color: var(--safelight);
+}
+.timeline-track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+.node {
+  --d: 11px;
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.node:hover {
+  border-color: var(--text);
+}
+.node.current {
+  border-color: var(--safelight);
+  background: var(--safelight);
+  box-shadow: 0 0 10px var(--safelight);
+  cursor: default;
+}
+.node-link {
+  width: 26px;
+  height: 1.5px;
+  background: var(--line);
+  flex: none;
+}
+.tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) {
+  border-color: var(--safelight);
+  color: var(--safelight);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* --- Stage (the hero) --- */
+.stage {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 30px;
+}
+.stage-wrap {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  line-height: 0;
+  box-shadow: var(--shadow);
+}
+.stage-wrap img.base {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 220px);
+  width: auto;
+  cursor: crosshair;
+}
+.stage-wrap img.before {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--seam);
+  box-shadow: 0 0 12px var(--seam);
+  transform: translateX(-1px);
+  cursor: ew-resize;
+}
+.seam::after {
+  content: "◂ ▸";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  color: var(--ground);
+  background: var(--seam);
+  border-radius: 20px;
+  padding: 3px 6px;
+  letter-spacing: -1px;
+}
+.mask {
+  position: absolute;
+  inset: 0;
+  background: var(--safelight);
+  opacity: 0.42;
+  pointer-events: none;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.scan::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(232, 145, 43, 0.16) 45%,
+    var(--safelight) 50%,
+    rgba(232, 145, 43, 0.16) 55%,
+    transparent
+  );
+  animation: develop 1.15s ease-in-out infinite;
+}
+@keyframes develop {
+  0% {
+    top: -40%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+.corner-label {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--safelight);
+  letter-spacing: 0.08em;
+}
+
+/* --- Empty / drop state --- */
+.dropzone {
+  width: min(620px, 80vw);
+  aspect-ratio: 3 / 2;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dropzone.over {
+  border-color: var(--safelight);
+  background: rgba(232, 145, 43, 0.05);
+}
+.dropzone h1 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 26px;
+  margin: 0;
+}
+.dropzone p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 40ch;
+  line-height: 1.5;
+}
+.dropzone .pick {
+  font-family: var(--mono);
+  color: var(--safelight);
+  border: 1px solid var(--safelight-dim);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* --- Command bar (floating) --- */
+.commandbar {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 60px));
+  background: rgba(20, 20, 22, 0.86);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 10px 10px 10px 16px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--safelight);
+  background: rgba(232, 145, 43, 0.1);
+  border: 1px solid var(--safelight-dim);
+  border-radius: 20px;
+  padding: 3px 6px 3px 11px;
+  margin-bottom: 9px;
+}
+.chip button {
+  background: none;
+  border: none;
+  color: var(--safelight);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+.commandbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.commandbar .glyph {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.commandbar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+}
+.commandbar input::placeholder {
+  color: var(--muted);
+}
+.apply {
+  background: var(--safelight);
+  color: #1a1206;
+  border: none;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.apply:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- Recipe HUD (signature) --- */
+.hud {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(11, 11, 12, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  max-width: 340px;
+  overflow: hidden;
+}
+.hud-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  color: var(--safelight);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.hud-strip .sep {
+  color: var(--muted);
+}
+.hud-body {
+  border-top: 1px solid var(--line);
+  padding: 11px 13px;
+  color: var(--text);
+  display: grid;
+  gap: 7px;
+}
+.hud-body .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.hud-body .k {
+  color: var(--muted);
+}
+.hud-body .warn {
+  color: var(--seam);
+}
+.hud-summary {
+  font-family: var(--body);
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.toast {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--seam);
+  color: #1a0d06;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan::before {
+    animation: none;
+    top: 0;
+    height: 100%;
+    background: rgba(232, 145, 43, 0.08);
+  }
+}

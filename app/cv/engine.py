@@ -155,6 +155,17 @@ def _resolve_mask(image: np.ndarray, target: str, segmentor, regions):
     return segmentor.get_mask(image, "global")           # unknown -> whole image
 
 
+def encode_mask(mask: np.ndarray) -> bytes:
+    """(h,w,1) float32 [0,1] mask -> grayscale PNG bytes for storage/transport."""
+    return cv2.imencode(".png", (mask.squeeze(-1) * 255).astype(np.uint8))[1].tobytes()
+
+
+def decode_mask(mask_png: bytes) -> np.ndarray:
+    """Grayscale PNG bytes -> (h,w,1) float32 [0,1] mask for the blend engine."""
+    gray = cv2.imdecode(np.frombuffer(mask_png, np.uint8), cv2.IMREAD_GRAYSCALE)
+    return np.expand_dims(gray.astype(np.float32) / 255.0, axis=-1)
+
+
 def apply_action(image: np.ndarray, action, segmentor, override_mask=None, regions=None) -> np.ndarray:
     """Validate one ActionCall against the allowlist and apply it. Raises ValueError on
     unknown tool or invalid params so the caller can skip it without a 500.

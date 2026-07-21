@@ -1,0 +1,20 @@
+/* Darkroom identity — near-black ground, warm amber safelight accent, mono meter readings.
+   Every color/type value in the app derives from here. */
+:root {
+  --ground: #0b0b0c;
+  --panel: #141416;
+  --panel-2: #1c1c1f;
+  --safelight: #e8912b; /* warm amber accent, used with restraint */
+  --safelight-dim: #b6721f;
+  --seam: #ff6b2c; /* before/after divider glow */
+  --text: #ece6dc;
+  --muted: #6e6a63;
+  --line: rgba(236, 230, 220, 0.1);
+
+  --display: "Space Grotesk", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius: 10px;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
